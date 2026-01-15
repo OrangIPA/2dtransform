@@ -4,7 +4,7 @@ use gl::{
     ARRAY_BUFFER, COLOR_BUFFER_BIT, DEPTH_BUFFER_BIT, STATIC_DRAW, types::{GLuint, GLvoid}
 };
 use glfw::{Context, OpenGlProfileHint, WindowHint, WindowMode};
-use nalgebra_glm::{Mat4, Vec4};
+use nalgebra_glm::{Mat4, Vec4, vec3};
 
 use crate::shader::Shader;
 
@@ -67,13 +67,17 @@ fn main() {
 
     while !window.should_close() {
         triangle_shader.use_shader();
-        triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.4, 05., 1.));
-        triangle_shader.set_mat4("transformation", &Mat4::identity());
         unsafe {
             gl::BindVertexArray(triangle_vao);
             gl::ClearColor(0.3, 0.3, 0.3, 1.);
             gl::Clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
-
+            
+            triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.4, 05., 1.));
+            triangle_shader.set_mat4("transformation", &Mat4::identity());
+            gl::DrawArrays(gl::TRIANGLES, 0, 3);
+            
+            triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.9, 05., 1.));
+            triangle_shader.set_mat4("transformation", &nalgebra_glm::translate(&Mat4::identity(), &vec3(-0.3, 0.0, 0.0)));
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
         };
 
