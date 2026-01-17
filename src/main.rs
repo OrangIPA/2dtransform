@@ -4,8 +4,8 @@ use gl::{
     ARRAY_BUFFER, COLOR_BUFFER_BIT, DEPTH_BUFFER_BIT, STATIC_DRAW,
     types::{GLuint, GLvoid},
 };
-use glfw::{Context, OpenGlProfileHint, WindowHint, WindowMode};
-use nalgebra_glm::{Mat4, Vec2, Vec4, vec3};
+use glfw::{Context, Key, OpenGlProfileHint, WindowHint, WindowMode};
+use nalgebra_glm::{Mat4, Vec2, Vec3, Vec4, vec3};
 
 use crate::shader::Shader;
 
@@ -94,8 +94,7 @@ fn main() {
         if let Some(v) = last_down_clone.get() {
             let prev_transform = transform_clone.get();
             transform_clone.set(
-                prev_transform
-                    + ((last_pos_clone.get() - v).component_mul(&Vec2::new(0.01, -0.01))),
+                prev_transform + ((last_pos_clone.get() - v).component_mul(&Vec2::new(1., -1.))),
             );
             last_down_clone.set(Some(last_pos_clone.get()));
 
@@ -103,23 +102,40 @@ fn main() {
         }
     });
 
+    window.set_key_polling(true);
+    window.set_key_callback(|window, key, _scancode, _action, _modifiers| match key {
+        Key::Escape => {
+            window.set_should_close(true);
+        }
+        _ => (),
+    });
+
     while !window.should_close() {
         triangle_shader.use_shader();
         unsafe {
+            let (width, height) = window.get_size();
+            let (width, height) = (width as f32, height as f32);
+            let cam_transform = &nalgebra_glm::scale(
+                &Mat4::identity(),
+                &vec3(40. / (width as f32), 40. / (height as f32), 1.),
+            );
+
             gl::BindVertexArray(triangle_vao);
             gl::ClearColor(0.3, 0.3, 0.3, 1.);
             gl::Clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
 
-            triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.4, 05., 1.));
-            triangle_shader.set_mat4("transformation", &Mat4::identity());
-            gl::DrawArrays(gl::TRIANGLES, 0, 3);
 
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.9, 05., 1.));
+            triangle_shader.set_mat4("cam_transform", &cam_transform);
             triangle_shader.set_mat4(
-                "transformation",
+                "transform",
                 &nalgebra_glm::translate(
                     &Mat4::identity(),
-                    &vec3(transform.get().x, transform.get().y, 0.0),
+                    &vec3(
+                        transform.get().x / width * 2.,
+                        transform.get().y / height * 2.,
+                        0.0,
+                    ),
                 ),
             );
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
