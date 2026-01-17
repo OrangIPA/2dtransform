@@ -1,10 +1,4 @@
-use std::{
-    cell::{Cell, RefCell},
-    ffi::c_void,
-    mem,
-    rc::Rc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{cell::Cell, ffi::c_void, mem, rc::Rc};
 
 use gl::{
     ARRAY_BUFFER, COLOR_BUFFER_BIT, DEPTH_BUFFER_BIT, STATIC_DRAW,
@@ -99,7 +93,10 @@ fn main() {
 
         if let Some(v) = last_down_clone.get() {
             let prev_transform = transform_clone.get();
-            transform_clone.set(prev_transform + ((last_pos_clone.get() - v)* 0.01));
+            transform_clone.set(
+                prev_transform
+                    + ((last_pos_clone.get() - v).component_mul(&Vec2::new(0.01, -0.01))),
+            );
             last_down_clone.set(Some(last_pos_clone.get()));
 
             println!("{}", transform_clone.get());
