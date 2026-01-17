@@ -1,10 +1,17 @@
-use std::{ffi::c_void, mem};
+use std::{
+    cell::{Cell, RefCell},
+    ffi::c_void,
+    mem,
+    rc::Rc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use gl::{
-    ARRAY_BUFFER, COLOR_BUFFER_BIT, DEPTH_BUFFER_BIT, STATIC_DRAW, types::{GLuint, GLvoid}
+    ARRAY_BUFFER, COLOR_BUFFER_BIT, DEPTH_BUFFER_BIT, STATIC_DRAW,
+    types::{GLuint, GLvoid},
 };
 use glfw::{Context, OpenGlProfileHint, WindowHint, WindowMode};
-use nalgebra_glm::{Mat4, Vec4, vec3};
+use nalgebra_glm::{Mat4, Vec2, Vec4, vec3};
 
 use crate::shader::Shader;
 
@@ -23,6 +30,9 @@ fn main() {
 
     window.make_current();
     window.set_framebuffer_size_polling(true);
+    window.set_framebuffer_size_callback(|_window, width, height| {
+        unsafe { gl::Viewport(0, 0, width, height) };
+    });
 
     #[rustfmt::skip]
     let triangle_vertices: [f32; 3 * 3] = [
@@ -65,19 +75,56 @@ fn main() {
     )
     .unwrap();
 
+    let transform = Rc::new(Cell::new(Vec2::zeros()));
+    let last_down = Rc::new(Cell::new(None as Option<Vec2>));
+    let last_pos = Rc::new(Cell::new(Vec2::zeros()));
+
+    let last_down_clone = Rc::clone(&last_down);
+    let last_pos_clone = Rc::clone(&last_pos);
+    window.set_mouse_button_polling(true);
+    window.set_mouse_button_callback(
+        move |_window, _mouse_button, action, _modifiers| match action {
+            glfw::Action::Release => last_down_clone.set(None),
+            glfw::Action::Press => last_down_clone.set(Some(last_pos_clone.get())),
+            glfw::Action::Repeat => (),
+        },
+    );
+
+    let transform_clone = Rc::clone(&transform);
+    let last_pos_clone = Rc::clone(&last_pos);
+    let last_down_clone = Rc::clone(&last_down);
+    window.set_cursor_pos_polling(true);
+    window.set_cursor_pos_callback(move |_window, xpos, ypos| {
+        last_pos_clone.set(Vec2::from_vec(vec![xpos as f32, ypos as f32]));
+
+        if let Some(v) = last_down_clone.get() {
+            let prev_transform = transform_clone.get();
+            transform_clone.set(prev_transform + ((last_pos_clone.get() - v)* 0.01));
+            last_down_clone.set(Some(last_pos_clone.get()));
+
+            println!("{}", transform_clone.get());
+        }
+    });
+
     while !window.should_close() {
         triangle_shader.use_shader();
         unsafe {
             gl::BindVertexArray(triangle_vao);
             gl::ClearColor(0.3, 0.3, 0.3, 1.);
             gl::Clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
-            
+
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.4, 05., 1.));
             triangle_shader.set_mat4("transformation", &Mat4::identity());
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
-            
+
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.9, 05., 1.));
-            triangle_shader.set_mat4("transformation", &nalgebra_glm::translate(&Mat4::identity(), &vec3(-0.3, 0.0, 0.0)));
+            triangle_shader.set_mat4(
+                "transformation",
+                &nalgebra_glm::translate(
+                    &Mat4::identity(),
+                    &vec3(transform.get().x, transform.get().y, 0.0),
+                ),
+            );
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
         };
 
