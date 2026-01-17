@@ -5,7 +5,7 @@ use gl::{
     types::{GLuint, GLvoid},
 };
 use glfw::{Context, Key, OpenGlProfileHint, WindowHint, WindowMode};
-use nalgebra_glm::{Mat4, Vec2, Vec3, Vec4, vec3};
+use nalgebra_glm::{Mat4, Vec2, Vec4, vec3};
 
 use crate::shader::Shader;
 
@@ -28,13 +28,6 @@ fn main() {
         unsafe { gl::Viewport(0, 0, width, height) };
     });
 
-    #[rustfmt::skip]
-    let triangle_vertices: [f32; 3 * 3] = [
-        -0.5, -0.5,  0.0,
-         0.0,  0.5,  0.0,
-         0.5, -0.5,  0.0,
-    ];
-
     let mut triangle_vao: GLuint = 0;
     let mut triangle_vbo: GLuint = 0;
 
@@ -44,11 +37,18 @@ fn main() {
 
         gl::BindVertexArray(triangle_vao);
 
+        #[rustfmt::skip]
+        const TRIANGLE_VERTICES: [f32; 3 * 3] = [
+            -0.5, -0.5,  0.0,
+             0.0,  0.5,  0.0,
+             0.5, -0.5,  0.0,
+        ];
+
         gl::BindBuffer(ARRAY_BUFFER, triangle_vbo);
         gl::BufferData(
             ARRAY_BUFFER,
-            mem::size_of_val(&triangle_vertices) as _,
-            triangle_vertices.as_ptr() as *const GLvoid,
+            mem::size_of_val(&TRIANGLE_VERTICES) as _,
+            TRIANGLE_VERTICES.as_ptr() as *const GLvoid,
             STATIC_DRAW,
         );
 
@@ -123,7 +123,6 @@ fn main() {
             gl::BindVertexArray(triangle_vao);
             gl::ClearColor(0.3, 0.3, 0.3, 1.);
             gl::Clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
-
 
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.9, 05., 1.));
             triangle_shader.set_mat4("cam_transform", &cam_transform);
