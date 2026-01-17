@@ -1,7 +1,7 @@
 use std::{cell::Cell, ffi::c_void, mem, rc::Rc};
 
 use gl::{
-    ARRAY_BUFFER, COLOR_BUFFER_BIT, DEPTH_BUFFER_BIT, STATIC_DRAW,
+    ARRAY_BUFFER, COLOR_BUFFER_BIT, DEPTH_BUFFER_BIT, DEPTH_TEST, STATIC_DRAW,
     types::{GLuint, GLvoid},
 };
 use glfw::{Context, Key, OpenGlProfileHint, WindowHint, WindowMode};
@@ -21,6 +21,9 @@ fn main() {
         .unwrap();
 
     gl::load_with(|s| window.get_proc_address(s).unwrap() as *const c_void);
+    unsafe {
+        gl::Enable(DEPTH_TEST);
+    }
 
     window.make_current();
     window.set_framebuffer_size_polling(true);
@@ -69,6 +72,40 @@ fn main() {
     )
     .unwrap();
 
+    let mut line_vao: GLuint = 0;
+    let mut line_vbo: GLuint = 0;
+
+    unsafe {
+        gl::GenVertexArrays(1, &mut line_vao);
+        gl::GenBuffers(1, &mut line_vbo);
+
+        gl::BindVertexArray(line_vao);
+
+        #[rustfmt::skip]
+        const LINE_VERTICES: [f32; 6] = [
+            0.0,  1.0, 0.1,
+            0.0, -1.0, 0.1
+        ];
+
+        gl::BindBuffer(ARRAY_BUFFER, line_vbo);
+        gl::BufferData(
+            ARRAY_BUFFER,
+            mem::size_of_val(&LINE_VERTICES) as _,
+            LINE_VERTICES.as_ptr() as _,
+            STATIC_DRAW,
+        );
+
+        gl::VertexAttribPointer(
+            0,
+            3,
+            gl::FLOAT,
+            gl::FALSE,
+            3 * size_of::<f32>() as i32,
+            std::ptr::null(),
+        );
+        gl::EnableVertexAttribArray(0);
+    }
+
     let transform = Rc::new(Cell::new(Vec2::zeros()));
     let last_down = Rc::new(Cell::new(None as Option<Vec2>));
     let last_pos = Rc::new(Cell::new(Vec2::zeros()));
@@ -111,7 +148,6 @@ fn main() {
     });
 
     while !window.should_close() {
-        triangle_shader.use_shader();
         unsafe {
             let (width, height) = window.get_size();
             let (width, height) = (width as f32, height as f32);
@@ -120,10 +156,11 @@ fn main() {
                 &vec3(40. / (width as f32), 40. / (height as f32), 1.),
             );
 
-            gl::BindVertexArray(triangle_vao);
             gl::ClearColor(0.3, 0.3, 0.3, 1.);
             gl::Clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
 
+            triangle_shader.use_shader();
+            gl::BindVertexArray(triangle_vao);
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.9, 05., 1.));
             triangle_shader.set_mat4("cam_transform", &cam_transform);
             triangle_shader.set_mat4(
@@ -138,6 +175,13 @@ fn main() {
                 ),
             );
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
+
+            gl::BindVertexArray(line_vao);
+            triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.3, 0.7, 1.0));
+            triangle_shader.set_mat4("cam_transform", &Mat4::identity());
+            triangle_shader.set_mat4("transform", &Mat4::identity());
+            gl::LineWidth(2.0);
+            gl::DrawArrays(gl::LINES, 0, 2);
         };
 
         window.swap_buffers();
