@@ -42,9 +42,9 @@ fn main() {
 
         #[rustfmt::skip]
         const TRIANGLE_VERTICES: [f32; 3 * 3] = [
-            -0.5, -0.5,  0.0,
-             0.0,  0.5,  0.0,
-             0.5, -0.5,  0.0,
+            -1.0, -1.0,  0.0,
+             0.0,  1.0,  0.0,
+             1.0, -1.0,  0.0,
         ];
 
         gl::BindBuffer(ARRAY_BUFFER, triangle_vbo);
@@ -134,8 +134,6 @@ fn main() {
                 prev_transform + ((last_pos_clone.get() - v).component_mul(&Vec2::new(1., -1.))),
             );
             last_down_clone.set(Some(last_pos_clone.get()));
-
-            println!("{}", transform_clone.get());
         }
     });
 
@@ -153,7 +151,7 @@ fn main() {
             let (width, height) = (width as f32, height as f32);
             let cam_transform = &nalgebra_glm::scale(
                 &Mat4::identity(),
-                &vec3(40. / (width as f32), 40. / (height as f32), 1.),
+                &vec3(1. / (width as f32), 1. / (height as f32), 1.),
             );
 
             gl::ClearColor(0.3, 0.3, 0.3, 1.);
@@ -162,20 +160,31 @@ fn main() {
             triangle_shader.use_shader();
             gl::BindVertexArray(triangle_vao);
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.9, 05., 1.));
-            triangle_shader.set_mat4("cam_transform", &cam_transform);
-            triangle_shader.set_mat4(
-                "transform",
-                &nalgebra_glm::translate(
-                    &Mat4::identity(),
-                    &vec3(
-                        transform.get().x / width * 2.,
-                        transform.get().y / height * 2.,
-                        0.0,
-                    ),
+            triangle_shader.set_mat4("cam_transform", &Mat4::identity());
+            let triangle_translate = nalgebra_glm::translate(
+                &Mat4::identity(),
+                &vec3(
+                    transform.get().x / width * 2.,
+                    transform.get().y / height * 2.,
+                    0.0,
                 ),
             );
+            let t = triangle_translate.column(3);
+            let rot_angle = if t.y < 0. {
+                (t.x / t.y).atan() + PI
+            } else {
+                (t.x / t.y).atan()
+            };
+            let triangle_rotation =
+                nalgebra_glm::rotate(&Mat4::identity(), rot_angle, &vec3(0., 0., -1.));
+            let triangle_scale = nalgebra_glm::scale(&Mat4::identity(), &vec3(30., 30., 1.));
+            let final_transform =
+                &triangle_translate * cam_transform * &triangle_rotation * &triangle_scale;
+
+            triangle_shader.set_mat4("transform", &final_transform);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
 
+            // y Axis
             gl::BindVertexArray(line_vao);
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.3, 0.7, 1.0));
             triangle_shader.set_mat4("cam_transform", &Mat4::identity());
@@ -183,6 +192,7 @@ fn main() {
             gl::LineWidth(2.0);
             gl::DrawArrays(gl::LINES, 0, 2);
 
+            // x Axis
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.3, 0.7, 1.0));
             triangle_shader.set_mat4("cam_transform", &Mat4::identity());
             triangle_shader.set_mat4(
