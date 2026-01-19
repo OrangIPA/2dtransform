@@ -149,6 +149,7 @@ fn main() {
         unsafe {
             let (width, height) = window.get_size();
             let (width, height) = (width as f32, height as f32);
+            let aspect_ratio = width / height;
             let cam_transform = &nalgebra_glm::scale(
                 &Mat4::identity(),
                 &vec3(1. / (width as f32), 1. / (height as f32), 1.),
@@ -170,11 +171,13 @@ fn main() {
                 ),
             );
             let t = triangle_translate.column(3);
-            let rot_angle = if t.y < 0. {
-                (t.x / t.y).atan() + PI
-            } else {
-                (t.x / t.y).atan()
-            };
+            let mut rot_angle = (t.x / t.y * aspect_ratio).atan();
+            if t.y < 0. {
+                rot_angle += PI;
+            }
+            if rot_angle.is_nan() {
+                rot_angle = 0.;
+            }
             let triangle_rotation =
                 nalgebra_glm::rotate(&Mat4::identity(), rot_angle, &vec3(0., 0., -1.));
             let triangle_scale = nalgebra_glm::scale(&Mat4::identity(), &vec3(30., 30., 1.));
