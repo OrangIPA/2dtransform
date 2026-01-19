@@ -1,4 +1,4 @@
-use std::{cell::Cell, ffi::c_void, mem, rc::Rc};
+use std::{cell::Cell, f32::consts::PI, ffi::c_void, mem, rc::Rc};
 
 use gl::{
     ARRAY_BUFFER, COLOR_BUFFER_BIT, DEPTH_BUFFER_BIT, DEPTH_TEST, STATIC_DRAW,
@@ -180,6 +180,15 @@ fn main() {
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.3, 0.7, 1.0));
             triangle_shader.set_mat4("cam_transform", &Mat4::identity());
             triangle_shader.set_mat4("transform", &Mat4::identity());
+            gl::LineWidth(2.0);
+            gl::DrawArrays(gl::LINES, 0, 2);
+
+            triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.3, 0.7, 1.0));
+            triangle_shader.set_mat4("cam_transform", &Mat4::identity());
+            triangle_shader.set_mat4(
+                "transform",
+                &nalgebra_glm::rotate_z(&Mat4::identity(), PI / 2.),
+            );
             gl::LineWidth(2.0);
             gl::DrawArrays(gl::LINES, 0, 2);
         };
