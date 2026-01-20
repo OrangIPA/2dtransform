@@ -1,11 +1,11 @@
 use std::{cell::Cell, f32::consts::PI, ffi::c_void, mem, rc::Rc};
 
 use gl::{
-    ARRAY_BUFFER, COLOR_BUFFER_BIT, DEPTH_BUFFER_BIT, DEPTH_TEST, STATIC_DRAW,
+    ARRAY_BUFFER, COLOR_BUFFER_BIT, DEPTH_BUFFER_BIT, DEPTH_TEST, MULTISAMPLE, STATIC_DRAW,
     types::{GLuint, GLvoid},
 };
 use glfw::{Context, Key, OpenGlProfileHint, WindowHint, WindowMode};
-use nalgebra_glm::{Mat4, Vec2, Vec4, vec3};
+use nalgebra_glm::{Mat4, Vec2, Vec4, vec3, vec4};
 
 use crate::shader::Shader;
 
@@ -15,6 +15,7 @@ fn main() {
     let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
     glfw.window_hint(WindowHint::ContextVersion(3, 3));
     glfw.window_hint(WindowHint::OpenGlProfile(OpenGlProfileHint::Core));
+    glfw.window_hint(WindowHint::Samples(Some(4)));
 
     let (mut window, _events) = glfw
         .create_window(800, 600, "2D Linear Transformation", WindowMode::Windowed)
@@ -84,7 +85,7 @@ fn main() {
         #[rustfmt::skip]
         const LINE_VERTICES: [f32; 6] = [
             0.0,  1.0, 0.1,
-            0.0, -1.0, 0.1
+            0.0,  0.0, 0.1
         ];
 
         gl::BindBuffer(ARRAY_BUFFER, line_vbo);
@@ -145,11 +146,14 @@ fn main() {
         _ => (),
     });
 
+    unsafe {
+        gl::Enable(MULTISAMPLE);
+    }
+
     while !window.should_close() {
         unsafe {
             let (width, height) = window.get_size();
             let (width, height) = (width as f32, height as f32);
-            let aspect_ratio = width / height;
             let cam_transform = &nalgebra_glm::scale(
                 &Mat4::identity(),
                 &vec3(1. / (width as f32), 1. / (height as f32), 1.),
@@ -158,11 +162,11 @@ fn main() {
             gl::ClearColor(0.3, 0.3, 0.3, 1.);
             gl::Clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
 
+            // Vector head
             triangle_shader.use_shader();
             gl::BindVertexArray(triangle_vao);
-            triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.9, 05., 1.));
-            triangle_shader.set_mat4("cam_transform", &Mat4::identity());
-            let triangle_translate = nalgebra_glm::translate(
+            triangle_shader.set_vec4("rgba", &Vec4::new(0.1, 0.8, 0.1, 1.));
+            let vector_head_translate = nalgebra_glm::translate(
                 &Mat4::identity(),
                 &vec3(
                     transform.get().x / width * 2.,
@@ -170,34 +174,47 @@ fn main() {
                     0.0,
                 ),
             );
-            let t = triangle_translate.column(3);
-            let mut rot_angle = (t.x / t.y * aspect_ratio).atan();
+            let t = vector_head_translate.column(3);
+            let mut vector_head_rot_angle = ((t.x * width) / (t.y * height)).atan();
             if t.y < 0. {
-                rot_angle += PI;
+                vector_head_rot_angle += PI;
             }
-            if rot_angle.is_nan() {
-                rot_angle = 0.;
+            if vector_head_rot_angle.is_nan() {
+                vector_head_rot_angle = 0.;
             }
-            let triangle_rotation =
-                nalgebra_glm::rotate(&Mat4::identity(), rot_angle, &vec3(0., 0., -1.));
-            let triangle_scale = nalgebra_glm::scale(&Mat4::identity(), &vec3(30., 30., 1.));
-            let final_transform =
-                &triangle_translate * cam_transform * &triangle_rotation * &triangle_scale;
+            let vector_head_rot =
+                nalgebra_glm::rotate(&Mat4::identity(), vector_head_rot_angle, &vec3(0., 0., -1.));
+            let vector_head_scale = nalgebra_glm::scale(&Mat4::identity(), &vec3(20., 20., 1.));
+            let vector_head_transform =
+                &vector_head_translate * cam_transform * &vector_head_rot * &vector_head_scale;
 
-            triangle_shader.set_mat4("transform", &final_transform);
+            triangle_shader.set_mat4("transform", &vector_head_transform);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
+
+            // Vector line
+            gl::BindVertexArray(line_vao);
+            triangle_shader.set_vec4("rgba", &vec4(0.1, 0.8, 0.1, 1.0));
+            #[rustfmt::skip]
+            let vector_line_scale = Mat4::new(
+                1., t.x * width,  0., 0.,
+                0., t.y * height, 0., 0.,
+                0., 0.,           1., 0.,
+                0., 0.,           0., 1.
+            );
+            let vector_line_transform = cam_transform * &vector_line_scale;
+            triangle_shader.set_mat4("transform", &vector_line_transform);
+            gl::LineWidth(4.0);
+            gl::DrawArrays(gl::LINES, 0, 2);
 
             // y Axis
             gl::BindVertexArray(line_vao);
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.3, 0.7, 1.0));
-            triangle_shader.set_mat4("cam_transform", &Mat4::identity());
             triangle_shader.set_mat4("transform", &Mat4::identity());
             gl::LineWidth(2.0);
             gl::DrawArrays(gl::LINES, 0, 2);
 
             // x Axis
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.3, 0.7, 1.0));
-            triangle_shader.set_mat4("cam_transform", &Mat4::identity());
             triangle_shader.set_mat4(
                 "transform",
                 &nalgebra_glm::rotate_z(&Mat4::identity(), PI / 2.),
