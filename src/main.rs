@@ -5,11 +5,18 @@ use gl::{
     types::{GLuint, GLvoid},
 };
 use glfw::{Context, Key, OpenGlProfileHint, WindowHint, WindowMode};
-use nalgebra_glm::{Mat4, Vec2, Vec4, vec3, vec4};
+use nalgebra_glm::{Mat4, Vec2, Vec4, vec2, vec3, vec4};
 
 use crate::shader::Shader;
 
 mod shader;
+
+#[derive(Clone, Copy, PartialEq)]
+enum CursorState {
+    None,
+    XDrag(Vec2),
+    YDrag(Vec2),
+}
 
 fn main() {
     let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
@@ -108,33 +115,57 @@ fn main() {
     }
 
     let transform = Rc::new(Cell::new(Vec2::zeros()));
-    let last_down = Rc::new(Cell::new(None as Option<Vec2>));
     let last_pos = Rc::new(Cell::new(Vec2::zeros()));
+    let cursor_state = Rc::new(Cell::new(CursorState::None));
 
-    let last_down_clone = Rc::clone(&last_down);
-    let last_pos_clone = Rc::clone(&last_pos);
     window.set_mouse_button_polling(true);
-    window.set_mouse_button_callback(
-        move |_window, _mouse_button, action, _modifiers| match action {
-            glfw::Action::Release => last_down_clone.set(None),
-            glfw::Action::Press => last_down_clone.set(Some(last_pos_clone.get())),
+    window.set_mouse_button_callback({
+        let last_pos = Rc::clone(&last_pos);
+        let cursor_state = Rc::clone(&cursor_state);
+        let transform = Rc::clone(&transform);
+
+        move |window, _mouse_button, action, _modifiers| match action {
+            glfw::Action::Release => cursor_state.set(CursorState::None),
+            glfw::Action::Press => {
+                let last_pos = last_pos.get();
+                let t = transform.get();
+                let (width, height) = window.get_size();
+
+                let click_pos = (last_pos - vec2(width as f32 / 2., height as f32 / 2.))
+                    .component_mul(&vec2(1., -1.));
+
+                if click_pos.x > t.x - 20.
+                    && click_pos.x < t.x + 20.
+                    && click_pos.y > t.y - 20.
+                    && click_pos.y < t.y + 20.
+                {
+                    cursor_state.set(CursorState::XDrag(vec2(last_pos.x, last_pos.y)));
+                }
+            }
             glfw::Action::Repeat => (),
-        },
-    );
+        }
+    });
 
-    let transform_clone = Rc::clone(&transform);
-    let last_pos_clone = Rc::clone(&last_pos);
-    let last_down_clone = Rc::clone(&last_down);
     window.set_cursor_pos_polling(true);
-    window.set_cursor_pos_callback(move |_window, xpos, ypos| {
-        last_pos_clone.set(Vec2::from_vec(vec![xpos as f32, ypos as f32]));
+    window.set_cursor_pos_callback({
+        let transform = Rc::clone(&transform);
+        let last_pos = Rc::clone(&last_pos);
+        let cursor_state = Rc::clone(&cursor_state);
 
-        if let Some(v) = last_down_clone.get() {
-            let prev_transform = transform_clone.get();
-            transform_clone.set(
-                prev_transform + ((last_pos_clone.get() - v).component_mul(&Vec2::new(1., -1.))),
-            );
-            last_down_clone.set(Some(last_pos_clone.get()));
+        move |_window, xpos, ypos| {
+            last_pos.set(Vec2::from_vec(vec![xpos as f32, ypos as f32]));
+
+            match cursor_state.get() {
+                CursorState::None => (),
+                CursorState::XDrag(matrix) => {
+                    let prev_transform = transform.get();
+                    transform.set(
+                        prev_transform + ((last_pos.get() - matrix).component_mul(&vec2(1., -1.))),
+                    );
+                    cursor_state.set(CursorState::XDrag(last_pos.get()));
+                }
+                CursorState::YDrag(matrix) => (),
+            }
         }
     });
 
