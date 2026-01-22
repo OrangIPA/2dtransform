@@ -114,7 +114,8 @@ fn main() {
         gl::EnableVertexAttribArray(0);
     }
 
-    let transform = Rc::new(Cell::new(Vec2::zeros()));
+    let x_transform = Rc::new(Cell::new(vec2(40., 0.)));
+    let y_transform = Rc::new(Cell::new(vec2(0., 40.)));
     let last_pos = Rc::new(Cell::new(Vec2::zeros()));
     let cursor_state = Rc::new(Cell::new(CursorState::None));
 
@@ -122,24 +123,36 @@ fn main() {
     window.set_mouse_button_callback({
         let last_pos = Rc::clone(&last_pos);
         let cursor_state = Rc::clone(&cursor_state);
-        let transform = Rc::clone(&transform);
+        let x_transform = Rc::clone(&x_transform);
+        let y_transform = Rc::clone(&y_transform);
 
         move |window, _mouse_button, action, _modifiers| match action {
             glfw::Action::Release => cursor_state.set(CursorState::None),
             glfw::Action::Press => {
                 let last_pos = last_pos.get();
-                let t = transform.get();
+                let t_x = x_transform.get();
+                let t_y = y_transform.get();
                 let (width, height) = window.get_size();
 
                 let click_pos = (last_pos - vec2(width as f32 / 2., height as f32 / 2.))
                     .component_mul(&vec2(1., -1.));
 
-                if click_pos.x > t.x - 20.
-                    && click_pos.x < t.x + 20.
-                    && click_pos.y > t.y - 20.
-                    && click_pos.y < t.y + 20.
+                if click_pos.x > t_x.x - 20.
+                    && click_pos.x < t_x.x + 20.
+                    && click_pos.y > t_x.y - 20.
+                    && click_pos.y < t_x.y + 20.
                 {
                     cursor_state.set(CursorState::XDrag(vec2(last_pos.x, last_pos.y)));
+                    return;
+                }
+
+                if click_pos.x > t_y.x - 20.
+                    && click_pos.x < t_y.x + 20.
+                    && click_pos.y > t_y.y - 20.
+                    && click_pos.y < t_y.y + 20.
+                {
+                    cursor_state.set(CursorState::YDrag(vec2(last_pos.x, last_pos.y)));
+                    return;
                 }
             }
             glfw::Action::Repeat => (),
@@ -148,7 +161,8 @@ fn main() {
 
     window.set_cursor_pos_polling(true);
     window.set_cursor_pos_callback({
-        let transform = Rc::clone(&transform);
+        let x_transform = Rc::clone(&x_transform);
+        let y_transform = Rc::clone(&y_transform);
         let last_pos = Rc::clone(&last_pos);
         let cursor_state = Rc::clone(&cursor_state);
 
@@ -158,13 +172,19 @@ fn main() {
             match cursor_state.get() {
                 CursorState::None => (),
                 CursorState::XDrag(matrix) => {
-                    let prev_transform = transform.get();
-                    transform.set(
+                    let prev_transform = x_transform.get();
+                    x_transform.set(
                         prev_transform + ((last_pos.get() - matrix).component_mul(&vec2(1., -1.))),
                     );
                     cursor_state.set(CursorState::XDrag(last_pos.get()));
                 }
-                CursorState::YDrag(matrix) => (),
+                CursorState::YDrag(matrix) => {
+                    let prev_transform = y_transform.get();
+                    y_transform.set(
+                        prev_transform + ((last_pos.get() - matrix).component_mul(&vec2(1., -1.))),
+                    );
+                    cursor_state.set(CursorState::YDrag(last_pos.get()));
+                },
             }
         }
     });
@@ -193,15 +213,15 @@ fn main() {
             gl::ClearColor(0.3, 0.3, 0.3, 1.);
             gl::Clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
 
-            // Vector head
+            // x Vector head
             triangle_shader.use_shader();
             gl::BindVertexArray(triangle_vao);
-            triangle_shader.set_vec4("rgba", &Vec4::new(0.1, 0.8, 0.1, 1.));
+            triangle_shader.set_vec4("rgba", &Vec4::new(0.8, 0.1, 0.1, 1.));
             let vector_head_translate = nalgebra_glm::translate(
                 &Mat4::identity(),
                 &vec3(
-                    transform.get().x / width * 2.,
-                    transform.get().y / height * 2.,
+                    x_transform.get().x / width * 2.,
+                    x_transform.get().y / height * 2.,
                     0.0,
                 ),
             );
@@ -222,7 +242,51 @@ fn main() {
             triangle_shader.set_mat4("transform", &vector_head_transform);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
 
-            // Vector line
+            // x Vector line
+            gl::BindVertexArray(line_vao);
+            triangle_shader.set_vec4("rgba", &vec4(0.8, 0.1, 0.1, 1.0));
+            #[rustfmt::skip]
+            let vector_line_scale = Mat4::new(
+                1., t.x * width,  0., 0.,
+                0., t.y * height, 0., 0.,
+                0., 0.,           1., 0.,
+                0., 0.,           0., 1.
+            );
+            let vector_line_transform = cam_transform * &vector_line_scale;
+            triangle_shader.set_mat4("transform", &vector_line_transform);
+            gl::LineWidth(4.0);
+            gl::DrawArrays(gl::LINES, 0, 2);
+
+            // y Vector head
+            triangle_shader.use_shader();
+            gl::BindVertexArray(triangle_vao);
+            triangle_shader.set_vec4("rgba", &Vec4::new(0.1, 0.8, 0.1, 1.));
+            let vector_head_translate = nalgebra_glm::translate(
+                &Mat4::identity(),
+                &vec3(
+                    y_transform.get().x / width * 2.,
+                    y_transform.get().y / height * 2.,
+                    0.0,
+                ),
+            );
+            let t = vector_head_translate.column(3);
+            let mut vector_head_rot_angle = ((t.x * width) / (t.y * height)).atan();
+            if t.y < 0. {
+                vector_head_rot_angle += PI;
+            }
+            if vector_head_rot_angle.is_nan() {
+                vector_head_rot_angle = 0.;
+            }
+            let vector_head_rot =
+                nalgebra_glm::rotate(&Mat4::identity(), vector_head_rot_angle, &vec3(0., 0., -1.));
+            let vector_head_scale = nalgebra_glm::scale(&Mat4::identity(), &vec3(20., 20., 1.));
+            let vector_head_transform =
+                &vector_head_translate * cam_transform * &vector_head_rot * &vector_head_scale;
+
+            triangle_shader.set_mat4("transform", &vector_head_transform);
+            gl::DrawArrays(gl::TRIANGLES, 0, 3);
+
+            // x Vector line
             gl::BindVertexArray(line_vao);
             triangle_shader.set_vec4("rgba", &vec4(0.1, 0.8, 0.1, 1.0));
             #[rustfmt::skip]
@@ -240,7 +304,11 @@ fn main() {
             // y Axis
             gl::BindVertexArray(line_vao);
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.3, 0.7, 1.0));
-            triangle_shader.set_mat4("transform", &Mat4::identity());
+            triangle_shader.set_mat4(
+                "transform",
+                &(&nalgebra_glm::translation(&vec3(0., -1., 0.))
+                    * &nalgebra_glm::scaling(&vec3(1., 2., 1.))),
+            );
             gl::LineWidth(2.0);
             gl::DrawArrays(gl::LINES, 0, 2);
 
@@ -248,7 +316,9 @@ fn main() {
             triangle_shader.set_vec4("rgba", &Vec4::new(0.3, 0.3, 0.7, 1.0));
             triangle_shader.set_mat4(
                 "transform",
-                &nalgebra_glm::rotate_z(&Mat4::identity(), PI / 2.),
+                &(&nalgebra_glm::translation(&vec3(1., 0., 0.))
+                    * &nalgebra_glm::rotate_z(&Mat4::identity(), PI / 2.)
+                    * &nalgebra_glm::scaling(&vec3(1., 2., 1.))),
             );
             gl::LineWidth(2.0);
             gl::DrawArrays(gl::LINES, 0, 2);
