@@ -184,7 +184,7 @@ fn main() {
                         prev_transform + ((last_pos.get() - matrix).component_mul(&vec2(1., -1.))),
                     );
                     cursor_state.set(CursorState::YDrag(last_pos.get()));
-                },
+                }
             }
         }
     });
@@ -213,11 +213,8 @@ fn main() {
             gl::ClearColor(0.3, 0.3, 0.3, 1.);
             gl::Clear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
 
-            // x Vector head
-            triangle_shader.use_shader();
-            gl::BindVertexArray(triangle_vao);
-            triangle_shader.set_vec4("rgba", &Vec4::new(0.8, 0.1, 0.1, 1.));
-            let vector_head_translate = nalgebra_glm::translate(
+            // Vector Heads Translate
+            let x_vector_head_translate = nalgebra_glm::translate(
                 &Mat4::identity(),
                 &vec3(
                     x_transform.get().x / width * 2.,
@@ -225,7 +222,43 @@ fn main() {
                     0.0,
                 ),
             );
-            let t = vector_head_translate.column(3);
+            let y_vector_head_translate = nalgebra_glm::translate(
+                &Mat4::identity(),
+                &vec3(
+                    y_transform.get().x / width * 2.,
+                    y_transform.get().y / height * 2.,
+                    0.0,
+                ),
+            );
+
+            // x Grids
+            triangle_shader.use_shader();
+            gl::BindVertexArray(line_vao);
+
+            let rot_vec =
+                vec2(y_transform.get().x / width, y_transform.get().y / height).normalize();
+
+            #[rustfmt::skip]
+            let x_grid_rot = Mat4::new(
+                1., rot_vec.x, 0., 0.,
+                0., rot_vec.y, 0., 0.,
+                0.                 , 0., 1., 0.,
+                0.                 , 0., 0., 1.
+            );
+            let x_grid_transform = &x_grid_rot
+                * &nalgebra_glm::translation(&vec3(x_vector_head_translate.column(3).x, -1., 0.1))
+                * cam_transform
+                * &nalgebra_glm::scaling(&vec3(width, height * 2., 1.));
+            triangle_shader.set_vec4("rgba", &vec4(0.4, 0.4, 0.4, 0.));
+            triangle_shader.set_mat4("transform", &x_grid_transform);
+            gl::LineWidth(2.);
+            gl::DrawArrays(gl::LINES, 0, 2);
+
+            // x Vector head
+            triangle_shader.use_shader();
+            gl::BindVertexArray(triangle_vao);
+            triangle_shader.set_vec4("rgba", &Vec4::new(0.8, 0.1, 0.1, 1.));
+            let t = x_vector_head_translate.column(3);
             let mut vector_head_rot_angle = ((t.x * width) / (t.y * height)).atan();
             if t.y < 0. {
                 vector_head_rot_angle += PI;
@@ -237,7 +270,7 @@ fn main() {
                 nalgebra_glm::rotate(&Mat4::identity(), vector_head_rot_angle, &vec3(0., 0., -1.));
             let vector_head_scale = nalgebra_glm::scale(&Mat4::identity(), &vec3(20., 20., 1.));
             let vector_head_transform =
-                &vector_head_translate * cam_transform * &vector_head_rot * &vector_head_scale;
+                &x_vector_head_translate * cam_transform * &vector_head_rot * &vector_head_scale;
 
             triangle_shader.set_mat4("transform", &vector_head_transform);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
@@ -261,15 +294,7 @@ fn main() {
             triangle_shader.use_shader();
             gl::BindVertexArray(triangle_vao);
             triangle_shader.set_vec4("rgba", &Vec4::new(0.1, 0.8, 0.1, 1.));
-            let vector_head_translate = nalgebra_glm::translate(
-                &Mat4::identity(),
-                &vec3(
-                    y_transform.get().x / width * 2.,
-                    y_transform.get().y / height * 2.,
-                    0.0,
-                ),
-            );
-            let t = vector_head_translate.column(3);
+            let t = y_vector_head_translate.column(3);
             let mut vector_head_rot_angle = ((t.x * width) / (t.y * height)).atan();
             if t.y < 0. {
                 vector_head_rot_angle += PI;
@@ -281,7 +306,7 @@ fn main() {
                 nalgebra_glm::rotate(&Mat4::identity(), vector_head_rot_angle, &vec3(0., 0., -1.));
             let vector_head_scale = nalgebra_glm::scale(&Mat4::identity(), &vec3(20., 20., 1.));
             let vector_head_transform =
-                &vector_head_translate * cam_transform * &vector_head_rot * &vector_head_scale;
+                &y_vector_head_translate * cam_transform * &vector_head_rot * &vector_head_scale;
 
             triangle_shader.set_mat4("transform", &vector_head_transform);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
