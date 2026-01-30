@@ -50,9 +50,9 @@ fn main() {
 
         #[rustfmt::skip]
         const TRIANGLE_VERTICES: [f32; 3 * 3] = [
-            -1.0, -1.0,  0.0,
-             0.0,  1.0,  0.0,
-             1.0, -1.0,  0.0,
+            -1.0, -2.0,  0.0,
+             0.0,  0.0,  0.0,
+             1.0, -2.0,  0.0,
         ];
 
         gl::BindBuffer(ARRAY_BUFFER, triangle_vbo);
@@ -245,10 +245,16 @@ fn main() {
                 0.                 , 0., 1., 0.,
                 0.                 , 0., 0., 1.
             );
-            let x_grid_transform = &x_grid_rot
-                * &nalgebra_glm::translation(&vec3(x_vector_head_translate.column(3).x, -1., 0.1))
-                * cam_transform
-                * &nalgebra_glm::scaling(&vec3(width, height * 2., 1.));
+            let x_grid_transform =
+                &nalgebra_glm::translation(&vec3(0., x_vector_head_translate.column(3).y, 0.))
+                    * &x_grid_rot
+                    * &nalgebra_glm::translation(&vec3(
+                        x_vector_head_translate.column(3).x,
+                        -10.,
+                        0.1,
+                    ))
+                    * cam_transform
+                    * &nalgebra_glm::scaling(&vec3(width, height * 20., 1.));
             triangle_shader.set_vec4("rgba", &vec4(0.4, 0.4, 0.4, 0.));
             triangle_shader.set_mat4("transform", &x_grid_transform);
             gl::LineWidth(2.);
